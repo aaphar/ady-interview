@@ -29,7 +29,7 @@ public class File {
     private String originalFileName;
 
     @NotBlank(message = "File code is required")
-    @Size(min = 6, max = 12, message = "File code must be between 6 and 12 characters")
+    @Size(min = 6, max = 8, message = "File code must be between 6 and 8 characters")
     @Column(unique = true, nullable = false)
     private String fileCode;
 
