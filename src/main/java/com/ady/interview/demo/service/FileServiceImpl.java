@@ -1,7 +1,9 @@
 package com.ady.interview.demo.service;
 
 import com.ady.interview.demo.dto.FileDownloadResponse;
+import com.ady.interview.demo.dto.FileResponse;
 import com.ady.interview.demo.exception.FileExpiredException;
+import com.ady.interview.demo.exception.FileNotFoundException;
 import com.ady.interview.demo.exception.MaxFileSizeExceededException;
 import com.ady.interview.demo.exception.StorageException;
 import com.ady.interview.demo.model.File;
@@ -11,6 +13,7 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -38,7 +41,7 @@ public class FileServiceImpl implements FileService {
 
     @Override
     @Transactional
-    public File store(MultipartFile file) {
+    public FileResponse store(MultipartFile file) {
         try {
             if (file.isEmpty()) {
                 throw new StorageException("Failed to store empty file.");
@@ -68,15 +71,19 @@ public class FileServiceImpl implements FileService {
                     .uploadDate(new Date())
                     .build();
 
-            return fileRepository.save(storedFile);
-
+            File savedFile = fileRepository.save(storedFile);
+            return FileResponse.builder()
+                    .fileUrl(savedFile.getFileUrl())
+                    .build();
         } catch (StorageException e) {
-            throw new StorageException("Failed to store file " + file.getOriginalFilename() + " due to an I/O error.", e);
+            log.error("Failed to store file: {}", file.getOriginalFilename(), e);
+            throw new StorageException(e.getMessage());
         } catch (MaxFileSizeExceededException e) {
-            throw new MaxFileSizeExceededException("Failed to store file " + file.getOriginalFilename() + " because it exceeds the maximum size limit.", e);
+            log.error("File size exceeds limit: {}", file.getOriginalFilename(), e);
+            throw new MaxFileSizeExceededException(e.getMessage());
         } catch (Exception e) {
             log.error("Failed to store file: {}", file.getOriginalFilename(), e);
-            throw new RuntimeException("Failed to store file: " + file.getOriginalFilename(), e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 
@@ -98,7 +105,7 @@ public class FileServiceImpl implements FileService {
     public FileDownloadResponse download(String fileCode) {
         try {
             File file = fileRepository.findByFileCode(fileCode)
-                    .orElseThrow(() -> new StorageException("File not found with code: " + fileCode));
+                    .orElseThrow(() -> new FileNotFoundException("File not found with code: " + fileCode));
             if (file.getUploadDate().before(new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000))) {
                 throw new FileExpiredException("File is older than 24 hours and cannot be accessed.");
             }
@@ -108,19 +115,22 @@ public class FileServiceImpl implements FileService {
                             .object(file.getFileName())
                             .build()
             );
+            if (inputStream == null) {
+                throw new FileNotFoundException("File not found in storage.");
+            }
             return FileDownloadResponse.builder()
-                    .inputStream(inputStream)
-                    .fileName(file.getOriginalFileName())
+                    .header("attachment; filename=\"" + file.getFileName() + "\"")
+                    .inputStream(new InputStreamResource(inputStream))
                     .build();
         } catch (FileExpiredException e) {
             log.info("File expired: {}", fileCode);
             throw new FileExpiredException(e.getMessage());
-        } catch (StorageException e) {
-            log.error("Failed to download file: {}", fileCode, e);
-            throw new StorageException("Failed to download file: " + fileCode, e);
+        } catch (FileNotFoundException e) {
+            log.info("File not found: {}", fileCode);
+            throw new FileNotFoundException(e.getMessage());
         } catch (Exception e) {
             log.info("Failed to read file: {}", fileCode);
-            throw new RuntimeException(e.getMessage());
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 

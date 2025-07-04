@@ -2,12 +2,11 @@ package com.ady.interview.demo.dto;
 
 import lombok.Builder;
 import lombok.Data;
-
-import java.io.InputStream;
+import org.springframework.core.io.InputStreamResource;
 
 @Builder
 @Data
 public class FileDownloadResponse {
-    private InputStream inputStream;
-    private String fileName;
+    private InputStreamResource inputStream;
+    private String header;
 }

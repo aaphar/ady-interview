@@ -26,37 +26,17 @@ public class FileController {
     FileService fileService;
 
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) {
-        try {
-            File uploadedFile = fileService.store(file);
-            return ResponseEntity
-                    .status(HttpStatus.OK)
-                    .body(FileResponse.builder()
-                            .fileUrl(uploadedFile.getFileUrl())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity
-                    .status(HttpStatus.BAD_REQUEST)
-                    .body(new MessageResponse(HttpStatus.BAD_REQUEST, e.getMessage()));
-        }
+    public ResponseEntity<FileResponse> uploadFile(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(fileService.store(file));
     }
 
     @GetMapping("/download/{fileCode}")
-    public ResponseEntity<?> downloadFile(@PathVariable("fileCode") String fileCode) {
-        try {
-            FileDownloadResponse response = fileService.download(fileCode);
-            if (response.getInputStream() == null) {
-                return ResponseEntity
-                        .status(HttpStatus.BAD_REQUEST)
-                        .build();
-            }
-            return ResponseEntity.ok()
-                    .header("Content-Disposition", "attachment; filename=\"" + response.getFileName() + "\"")
-                    .body(new InputStreamResource(response.getInputStream()));
-        } catch (Exception e) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new MessageResponse(HttpStatus.NOT_FOUND, e.getMessage()));
-        }
+    public ResponseEntity<InputStreamResource> downloadFile(@PathVariable("fileCode") String fileCode) {
+        FileDownloadResponse response = fileService.download(fileCode);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", response.getHeader())
+                .body(response.getInputStream());
     }
 }
