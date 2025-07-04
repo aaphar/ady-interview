@@ -11,6 +11,7 @@ import com.ady.interview.demo.repository.FileRepository;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
@@ -21,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.text.Normalizer;
 import java.util.Date;
+import java.util.List;
 import java.util.Random;
 
 @Slf4j
@@ -131,6 +133,30 @@ public class FileServiceImpl implements FileService {
         } catch (Exception e) {
             log.info("Failed to read file: {}", fileCode);
             throw new RuntimeException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void deleteExpiredFiles() {
+        try {
+            Date expirationDate = new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000L);
+
+            List<File> files = fileRepository.findExpiredFiles(expirationDate);
+            files.forEach(file -> {
+                try {
+                    minioClient.removeObject(
+                            RemoveObjectArgs.builder()
+                                    .bucket(bucketName)
+                                    .object(file.getFileName())
+                                    .build()
+                    );
+                    fileRepository.delete(file);
+                } catch (Exception e) {
+                    log.error("Failed to delete expired file: {}", file.getFileName(), e);
+                }
+            });
+        } catch (Exception e) {
+            log.error("Error deleting expired files: {}", e.getMessage());
         }
     }
 

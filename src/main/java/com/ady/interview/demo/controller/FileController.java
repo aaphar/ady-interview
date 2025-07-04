@@ -2,8 +2,6 @@ package com.ady.interview.demo.controller;
 
 import com.ady.interview.demo.dto.FileDownloadResponse;
 import com.ady.interview.demo.dto.FileResponse;
-import com.ady.interview.demo.dto.MessageResponse;
-import com.ady.interview.demo.model.File;
 import com.ady.interview.demo.service.FileService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
@@ -12,7 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
 import java.util.logging.Logger;
 
 @CrossOrigin(origins = {"*"}, maxAge = 3600)

@@ -10,4 +10,5 @@ public interface FileService {
 
     FileDownloadResponse download(String fileCode);
 
+    void deleteExpiredFiles();
 }
