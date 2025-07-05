@@ -1,14 +1,12 @@
 package com.ady.interview.demo.service;
 
 import com.ady.interview.demo.exception.FileExpiredException;
+import com.ady.interview.demo.exception.FileNotFoundException;
 import com.ady.interview.demo.exception.MaxFileSizeExceededException;
 import com.ady.interview.demo.exception.StorageException;
 import com.ady.interview.demo.model.File;
 import com.ady.interview.demo.repository.FileRepository;
-import io.minio.GetObjectArgs;
-import io.minio.GetObjectResponse;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
+import io.minio.*;
 import io.minio.errors.*;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +48,12 @@ public class FileServiceTest {
     @Mock
     GetObjectResponse objectResponse;
 
+    @Mock
+    ObjectWriteResponse objectWriteResponse;
+
+    @Mock
+    InputStream inputStream;
+
     @BeforeEach
     public void setup() {
         ReflectionTestUtils.setField(fileService, "bucketName", "ady-bucket");
@@ -80,12 +84,13 @@ public class FileServiceTest {
     public void fileDownloadExpiredThrowFileExpiredException() throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         File file = File.builder()
                 .fileCode("expiredCode")
-                .uploadDate(new Date(System.currentTimeMillis() - 1000 * 60 * 60 * 24))
+                .fileName("expiredFile.txt")
+                .uploadDate(new Date(System.currentTimeMillis() - 1000 * 60 * 60 * 25))
                 .fileUrl("http://localhost:8080/api/file/download/expiredCode")
                 .originalFileName("expiredFile.txt")
                 .size(1000L)
                 .build();
-        when(fileRepository.findByFileCode(anyString())).thenReturn(Optional.ofNullable(file));
+        when(fileRepository.findByFileCode(anyString())).thenReturn(Optional.of(file));
         assertThrows(FileExpiredException.class, () -> fileService.download("expiredCode"));
         verify(fileRepository, times(1)).findByFileCode("expiredCode");
         verify(minioClient, never()).getObject(any());
@@ -94,7 +99,7 @@ public class FileServiceTest {
     @Test
     public void fileDownloadNotFoundThrowStorageException() throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         when(fileRepository.findByFileCode(anyString())).thenReturn(Optional.empty());
-        assertThrows(StorageException.class, () -> fileService.download("nonExistentCode"));
+        assertThrows(FileNotFoundException.class, () -> fileService.download("nonExistentCode"));
         verify(fileRepository, times(1)).findByFileCode("nonExistentCode");
         verify(minioClient, never()).getObject(any());
     }
@@ -102,23 +107,22 @@ public class FileServiceTest {
     @Test
     public void fileStorageSuccess() throws Exception {
         File file = File.builder()
-                .fileCode("expiredCode")
+                .fileCode("successCode")
                 .uploadDate(new Date())
-                .fileUrl("http://localhost:8080/api/file/download/expiredCode")
-                .fileName("1699100000000_expiredFile.txt")
-                .originalFileName("expiredFile.txt")
+                .fileUrl("http://localhost:8080/api/file/download/successCode")
+                .fileName("successFile.txt")
+                .originalFileName("successFile.txt")
                 .size(1000L)
                 .build();
 
         when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(9_000_000L);
-        when(multipartFile.getOriginalFilename()).thenReturn("expiredFile.txt");
-        when(multipartFile.getInputStream()).thenReturn(mock(InputStream.class));
+        when(multipartFile.getSize()).thenReturn(1000L);
+        when(multipartFile.getOriginalFilename()).thenReturn("successFile.txt");
+        when(multipartFile.getInputStream()).thenReturn(inputStream);
         when(multipartFile.getContentType()).thenReturn("text/plain");
 
+        when(minioClient.putObject(any(PutObjectArgs.class))).thenReturn(objectWriteResponse);
         when(fileRepository.save(any(File.class))).thenReturn(file);
-
-        ReflectionTestUtils.setField(fileService, "bucketName", "ady-bucket");
 
         fileService.store(multipartFile);
 
@@ -132,12 +136,18 @@ public class FileServiceTest {
                 .fileCode("validCode")
                 .uploadDate(new Date())
                 .fileUrl("http://localhost:8080/api/file/download/validCode")
+                .fileName("validFile.txt")
                 .originalFileName("validFile.txt")
                 .size(1000L)
                 .build();
 
         when(fileRepository.findByFileCode("validCode")).thenReturn(Optional.of(file));
         when(minioClient.getObject(any(GetObjectArgs.class))).thenReturn(objectResponse);
+
+        fileService.download("validCode");
+
+        verify(fileRepository, times(1)).findByFileCode("validCode");
+        verify(minioClient, times(1)).getObject(any(GetObjectArgs.class));
 
     }
 }
