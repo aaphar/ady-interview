@@ -1,5 +1,6 @@
 package com.ady.interview.demo.service;
 
+import com.ady.interview.demo.dto.FileDownloadResponse;
 import com.ady.interview.demo.exception.FileExpiredException;
 import com.ady.interview.demo.exception.FileNotFoundException;
 import com.ady.interview.demo.exception.MaxFileSizeExceededException;
@@ -25,7 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -144,7 +145,10 @@ public class FileServiceTest {
         when(fileRepository.findByFileCode("validCode")).thenReturn(Optional.of(file));
         when(minioClient.getObject(any(GetObjectArgs.class))).thenReturn(objectResponse);
 
-        fileService.download("validCode");
+        FileDownloadResponse response = fileService.download("validCode");
+        assertNotNull(response);
+        assertTrue(response.getHeader().contains("attachment; filename="));
+        assertNotNull(response.getInputStream());
 
         verify(fileRepository, times(1)).findByFileCode("validCode");
         verify(minioClient, times(1)).getObject(any(GetObjectArgs.class));
